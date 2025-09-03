@@ -1,96 +1,102 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ActivityCard, { ActivityCardProps } from "./ActivityCard";
+import { useCommunityStore } from "@/lib/stores/communityStore";
+import ActivityCard from "./ActivityCard";
 
 interface FeedTabProps {
   onCreatePost: () => void;
 }
 
-const mockFeedData: ActivityCardProps[] = [
-  {
-    type: "review",
-    avatar: "🎬",
-    username: "시네마러버님이 15분 전에",
-    timestamp: "리뷰를 작성했습니다",
-    activityType: "리뷰",
-    title: "오펜하이머",
-    rating: 4,
-    preview:
-      "놀란 감독의 또 다른 걸작. 역사적 인물을 다룬 작품 중에서 가장 인상 깊었습니다. 특히 시각적 연출과 사운드 디자인이 정말 압도적이었어요...",
-    likes: 24,
-    comments: 8,
-    tags: ["크리스토퍼놀란", "역사", "전기영화"],
-  },
-  {
-    type: "discussion",
-    avatar: "💭",
-    username: "드라마퀸님이 32분 전에",
-    timestamp: "토론을 시작했습니다",
-    activityType: "토론",
-    title: "더 글로리 시즌2에 대한 여러분의 생각은?",
-    preview:
-      "시즌1보다 더 강렬했던 것 같은데, 복수의 완성도 측면에서 어떻게 생각하시나요? 특히 마지막 에피소드가 정말 인상적이었습니다...",
-    likes: 12,
-    comments: 15,
-    tags: ["더글로리", "K드라마", "복수극"],
-  },
-  {
-    type: "cat",
-    avatar: "🐱",
-    username: "고양이집사님의 고양이가",
-    timestamp: "1시간 전에 레벨업했습니다!",
-    activityType: "성장",
-    title: "🎉 나비가 Lv.7 영화평론가로 성장했어요!",
-    preview:
-      "꾸준한 리뷰 작성으로 나비가 한 단계 성장했습니다. 이제 더 깊이 있는 영화 분석이 가능해졌어요!",
-    likes: 18,
-    comments: 5,
-    tags: ["고양이성장", "영화평론가", "레벨업"],
-  },
-  {
-    type: "emotion",
-    avatar: "💙",
-    username: "감성충만님이 2시간 전에",
-    timestamp: "감정을 기록했습니다",
-    activityType: "감정",
-    title: "라라랜드",
-    preview:
-      "😭 슬픔 | 마지막 장면에서 정말 많이 울었어요. 사랑과 꿈 사이의 선택이라는 주제가 너무 현실적이고 아프게 다가왔습니다...",
-    likes: 9,
-    comments: 3,
-    tags: ["라라랜드", "뮤지컬", "감동"],
-  },
-];
-
 export default function FeedTab({ onCreatePost }: FeedTabProps) {
-  const [feedData] = useState<ActivityCardProps[]>(mockFeedData);
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    posts,
+    postsLoading,
+    postsError,
+    hasMorePosts,
+    fetchPosts,
+    loadMorePosts,
+    togglePostLike,
+    incrementPostViews,
+    setCurrentUser,
+    clearErrors,
+  } = useCommunityStore();
 
-  const loadMoreContent = () => {
-    setIsLoading(true);
-    // Simulate loading more content
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  };
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Infinite scroll handler
+  // 컴포넌트 마운트시 데이터 로드
+  useEffect(() => {
+    // 임시로 현재 사용자 설정 (나중에 실제 인증으로 대체)
+    setCurrentUser("user1");
+
+    // 게시글 로드
+    if (posts.length === 0) {
+      fetchPosts(true);
+    }
+  }, []);
+
+  // 무한 스크롤 처리
   useEffect(() => {
     const handleScroll = () => {
       if (
         window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 100
+          document.documentElement.offsetHeight - 100 &&
+        hasMorePosts &&
+        !postsLoading &&
+        !isLoadingMore
       ) {
-        if (!isLoading) {
-          loadMoreContent();
-        }
+        handleLoadMore();
       }
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isLoading]);
+  }, [hasMorePosts, postsLoading, isLoadingMore]);
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore || !hasMorePosts) return;
+
+    setIsLoadingMore(true);
+    try {
+      await loadMorePosts();
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handlePostClick = (postId: string) => {
+    incrementPostViews(postId);
+    // 게시글 상세 페이지로 이동하는 로직 추가 가능
+  };
+
+  const handleLike = (postId: string) => {
+    togglePostLike(postId);
+  };
+
+  // 에러 처리
+  if (postsError) {
+    return (
+      <div className="text-center py-16">
+        <div className="text-red-400 mb-4">⚠️ {postsError}</div>
+        <button
+          onClick={() => {
+            clearErrors();
+            fetchPosts(true);
+          }}
+          className="px-6 py-3 rounded-lg font-medium hover:shadow-lg 
+                     transition-all duration-300 border-2 border-transparent 
+                     hover:border-white/20"
+          style={{
+            backgroundColor: "#CCFF00",
+            color: "#111111",
+            boxShadow: "0 4px 20px rgba(204, 255, 0, 0.3)",
+          }}
+        >
+          다시 시도
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -108,16 +114,9 @@ export default function FeedTab({ onCreatePost }: FeedTabProps) {
         ✨ 새 글 작성하기
       </button>
 
-      {/* Feed Cards */}
-      <div className="space-y-6">
-        {feedData.map((item, index) => (
-          <ActivityCard key={index} {...item} />
-        ))}
-      </div>
-
-      {/* Loading Indicator */}
-      {isLoading && (
-        <div className="flex justify-center items-center py-8">
+      {/* Initial Loading */}
+      {postsLoading && posts.length === 0 ? (
+        <div className="flex justify-center items-center py-16">
           <div className="bg-gray-800 rounded-xl p-6 text-center border border-white/10 shadow-sm">
             <div
               className="animate-spin w-8 h-8 border-2 border-t-transparent 
@@ -127,13 +126,77 @@ export default function FeedTab({ onCreatePost }: FeedTabProps) {
                 borderTopColor: "transparent",
               }}
             ></div>
-            <p style={{ color: "#CCFF00" }}>더 많은 콘텐츠를 불러오는 중...</p>
+            <p style={{ color: "#CCFF00" }}>피드를 불러오는 중...</p>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Feed Cards */}
+          <div className="space-y-6">
+            {posts.map((post) => (
+              <ActivityCard
+                key={post.id}
+                type={post.type}
+                avatar={post.authorAvatar}
+                username={post.authorName}
+                timestamp={new Date(post.createdAt).toLocaleString("ko-KR", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                activityType={
+                  post.type === "review"
+                    ? "리뷰"
+                    : post.type === "discussion"
+                    ? "토론"
+                    : post.type === "emotion"
+                    ? "감정"
+                    : "일반"
+                }
+                title={post.title}
+                preview={post.content}
+                rating={post.rating}
+                likes={post.likes}
+                comments={post.comments}
+                tags={post.tags}
+                onClick={() => handlePostClick(post.id)}
+                onLike={() => handleLike(post.id)}
+                isLiked={post.likedBy?.includes("user1") || false} // 현재 사용자 ID 확인
+              />
+            ))}
+          </div>
+
+          {/* Load More Loading */}
+          {(isLoadingMore || postsLoading) && posts.length > 0 && (
+            <div className="flex justify-center items-center py-8">
+              <div className="bg-gray-800 rounded-xl p-6 text-center border border-white/10 shadow-sm">
+                <div
+                  className="animate-spin w-8 h-8 border-2 border-t-transparent 
+                            rounded-full mx-auto mb-3"
+                  style={{
+                    borderColor: "#CCFF00",
+                    borderTopColor: "transparent",
+                  }}
+                ></div>
+                <p style={{ color: "#CCFF00" }}>
+                  더 많은 콘텐츠를 불러오는 중...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* No More Posts */}
+          {!hasMorePosts && posts.length > 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-400">모든 게시글을 불러왔습니다.</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Empty State */}
-      {feedData.length === 0 && !isLoading && (
+      {!postsLoading && posts.length === 0 && !postsError && (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">📱</div>
           <h3 className="text-xl font-bold mb-2" style={{ color: "#CCFF00" }}>

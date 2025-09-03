@@ -16,6 +16,9 @@ export interface ActivityCardProps {
   shares?: number;
   tags?: string[];
   className?: string;
+  onClick?: () => void;
+  onLike?: () => void;
+  isLiked?: boolean;
 }
 
 export default function ActivityCard({
@@ -31,17 +34,33 @@ export default function ActivityCard({
   comments,
   tags,
   className = "",
+  onClick,
+  onLike,
+  isLiked: initialIsLiked = false,
 }: ActivityCardProps) {
   const [likes, setLikes] = useState(initialLikes);
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
 
-  const handleLike = () => {
-    if (isLiked) {
-      setLikes(likes - 1);
+  const handleLike = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 카드 클릭 이벤트와 분리
+
+    if (onLike) {
+      onLike();
     } else {
-      setLikes(likes + 1);
+      // Fallback for local state management
+      if (isLiked) {
+        setLikes(likes - 1);
+      } else {
+        setLikes(likes + 1);
+      }
+      setIsLiked(!isLiked);
     }
-    setIsLiked(!isLiked);
+  };
+
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+    }
   };
 
   const getCardStyle = () => {
@@ -84,8 +103,9 @@ export default function ActivityCard({
       className={`
         bg-gray-800 backdrop-blur-lg border rounded-2xl p-6 mb-6 shadow-sm
         transition-all duration-300 hover:transform hover:-translate-y-1
-        hover:shadow-lg ${getCardStyle()} ${className}
+        hover:shadow-lg cursor-pointer ${getCardStyle()} ${className}
       `}
+      onClick={handleCardClick}
     >
       {/* Card Header */}
       <header className="flex items-center gap-4 mb-4">
@@ -173,6 +193,10 @@ export default function ActivityCard({
         <button
           className="flex items-center gap-2 px-3 py-1 rounded-full text-sm 
                           text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-300"
+          onClick={(e) => {
+            e.stopPropagation();
+            // 댓글 모달 열기 또는 댓글 섹션으로 스크롤
+          }}
         >
           <span>💬</span>
           <span>{comments}</span>
@@ -181,6 +205,10 @@ export default function ActivityCard({
         <button
           className="flex items-center gap-2 px-3 py-1 rounded-full text-sm 
                           text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-300"
+          onClick={(e) => {
+            e.stopPropagation();
+            // 공유 기능 구현
+          }}
         >
           <span>🔤</span>
           <span>공유</span>
@@ -191,6 +219,10 @@ export default function ActivityCard({
           <button
             className="flex items-center gap-2 px-3 py-1 rounded-full text-sm 
                             text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-300"
+            onClick={(e) => {
+              e.stopPropagation();
+              // 축하 기능 구현
+            }}
           >
             <span>🎉</span>
             <span>축하</span>
