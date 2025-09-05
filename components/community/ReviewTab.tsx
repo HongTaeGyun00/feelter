@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ActivityCard, { ActivityCardProps } from "./ActivityCard";
 
 interface ReviewTabProps {
@@ -81,22 +81,13 @@ const mockReviewData: ActivityCardProps[] = [
 ];
 
 export default function ReviewTab({ onCreatePost }: ReviewTabProps) {
-  const [reviewData, setReviewData] =
-    useState<ActivityCardProps[]>(mockReviewData);
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [isLoading] = useState(false);
 
-  useEffect(() => {
-    let filteredData = [...mockReviewData];
-
-    // Apply rating filter
-    if (selectedRating) {
-      filteredData = filteredData.filter(
-        (item) => item.rating === selectedRating
-      );
-    }
-
-    setReviewData(filteredData);
+  // Memoize filtered data to prevent unnecessary re-renders
+  const filteredReviewData = useMemo(() => {
+    if (!selectedRating) return mockReviewData;
+    return mockReviewData.filter((item) => item.rating === selectedRating);
   }, [selectedRating]);
 
   const getRatingColor = (rating: number) => {
@@ -177,7 +168,7 @@ export default function ReviewTab({ onCreatePost }: ReviewTabProps) {
 
       {/* Review Cards */}
       <div className="space-y-6">
-        {reviewData.map((item, index) => (
+        {filteredReviewData.map((item, index) => (
           <ActivityCard
             key={index}
             {...item}
@@ -209,7 +200,7 @@ export default function ReviewTab({ onCreatePost }: ReviewTabProps) {
       </div>
 
       {/* Empty State */}
-      {reviewData.length === 0 && !isLoading && (
+      {filteredReviewData.length === 0 && !isLoading && (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">⭐</div>
           <h3 className="text-xl font-bold mb-2" style={{ color: "#CCFF00" }}>

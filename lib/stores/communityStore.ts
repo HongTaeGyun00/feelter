@@ -13,9 +13,10 @@ import {
   catService,
   emotionService,
 } from "../services/communityService";
+import { useAuthStore } from "./authStore";
 
 interface CommunityState {
-  // 게시글 관련
+  // 기존 상태들...
   posts: CommunityPost[];
   currentPost: CommunityPost | null;
   postsLoading: boolean;
@@ -24,32 +25,33 @@ interface CommunityState {
   lastDoc: any;
   hasMorePosts: boolean;
 
-  // 댓글 관련
   comments: Comment[];
   commentsLoading: boolean;
   commentsError: string | null;
 
-  // 고양이 관련
   cats: Cat[];
   catsLoading: boolean;
   catsError: string | null;
 
-  // 감정 기록 관련
   emotions: EmotionRecord[];
   emotionsLoading: boolean;
   emotionsError: string | null;
 
-  // 현재 사용자 정보
-  currentUserId: string | null;
-
-  // Actions
-  // 게시글 관련
+  // 액션들 (인증 확인 로직 포함)
   fetchPosts: (reset?: boolean) => Promise<void>;
   fetchPostById: (id: string) => Promise<void>;
   searchPosts: (filters: CommunityFilters, reset?: boolean) => Promise<void>;
   loadMorePosts: () => Promise<void>;
   addPost: (
-    post: Omit<CommunityPost, "id" | "createdAt" | "updatedAt">
+    post: Omit<
+      CommunityPost,
+      | "id"
+      | "createdAt"
+      | "updatedAt"
+      | "authorId"
+      | "authorName"
+      | "authorAvatar"
+    >
   ) => Promise<string>;
   updatePost: (id: string, updates: Partial<CommunityPost>) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
@@ -58,32 +60,46 @@ interface CommunityState {
   setCurrentPost: (post: CommunityPost | null) => void;
   setFilters: (filters: CommunityFilters) => void;
 
-  // 댓글 관련
   fetchComments: (postId: string) => Promise<void>;
   addComment: (
-    comment: Omit<Comment, "id" | "createdAt" | "updatedAt">
+    comment: Omit<
+      Comment,
+      | "id"
+      | "createdAt"
+      | "updatedAt"
+      | "authorId"
+      | "authorName"
+      | "authorAvatar"
+    >
   ) => Promise<string>;
   updateComment: (id: string, updates: Partial<Comment>) => Promise<void>;
   deleteComment: (id: string, postId: string) => Promise<void>;
   toggleCommentLike: (commentId: string) => Promise<void>;
 
-  // 고양이 관련
-  fetchCats: (userId: string) => Promise<void>;
-  addCat: (cat: Omit<Cat, "id" | "createdAt" | "updatedAt">) => Promise<string>;
+  fetchCats: (userId?: string) => Promise<void>;
+  addCat: (
+    cat: Omit<Cat, "id" | "createdAt" | "updatedAt" | "userId">
+  ) => Promise<string>;
   updateCat: (id: string, updates: Partial<Cat>) => Promise<void>;
 
-  // 감정 기록 관련
-  fetchEmotions: (userId: string) => Promise<void>;
+  fetchEmotions: (userId?: string) => Promise<void>;
   addEmotion: (
-    emotion: Omit<EmotionRecord, "id" | "createdAt" | "updatedAt">
+    emotion: Omit<EmotionRecord, "id" | "createdAt" | "updatedAt" | "userId">
   ) => Promise<string>;
   updateEmotion: (id: string, updates: Partial<EmotionRecord>) => Promise<void>;
   deleteEmotion: (id: string) => Promise<void>;
 
-  // 유틸리티
-  setCurrentUser: (userId: string | null) => void;
   clearErrors: () => void;
 }
+
+// 인증 확인 헬퍼 함수
+const requireAuth = () => {
+  const user = useAuthStore.getState().user;
+  if (!user) {
+    throw new Error("로그인이 필요한 기능입니다.");
+  }
+  return user;
+};
 
 export const useCommunityStore = create<CommunityState>()(
   devtools(
@@ -108,8 +124,6 @@ export const useCommunityStore = create<CommunityState>()(
       emotions: [],
       emotionsLoading: false,
       emotionsError: null,
-
-      currentUserId: null,
 
       // 게시글 관련 액션들
       fetchPosts: async (reset = true) => {
@@ -218,19 +232,26 @@ export const useCommunityStore = create<CommunityState>()(
         }
       },
 
-      addPost: async (post) => {
+      addPost: async (postData) => {
         try {
+          const user = requireAuth();
+
+          const post = {
+            ...postData,
+            authorId: user.uid,
+            authorName: user.nickname || user.displayName || "사용자",
+            authorAvatar: user.photoURL ? "🖼️" : "👤", // 실제로는 이미지 URL 처리
+          };
+
           const postId = await postService.addPost(post);
 
           // 고양이 경험치 추가
-          if (get().currentUserId && post.type === "review") {
-            await catService.addExperience(get().currentUserId!, "review", 20);
-          } else if (get().currentUserId && post.type === "discussion") {
-            await catService.addExperience(
-              get().currentUserId!,
-              "discussion",
-              15
-            );
+          if (post.type === "review") {
+            await catService.addExperience(user.uid, "review", 20);
+          } else if (post.type === "discussion") {
+            await catService.addExperience(user.uid, "discussion", 15);
+          } else if (post.type === "emotion") {
+            await catService.addExperience(user.uid, "emotion", 10);
           }
 
           // 새 게시글을 목록 맨 앞에 추가
@@ -259,6 +280,15 @@ export const useCommunityStore = create<CommunityState>()(
 
       updatePost: async (id, updates) => {
         try {
+          const user = requireAuth();
+
+          // 작성자 확인
+          const currentPost =
+            get().posts.find((p) => p.id === id) || get().currentPost;
+          if (currentPost && currentPost.authorId !== user.uid) {
+            throw new Error("본인의 게시글만 수정할 수 있습니다.");
+          }
+
           await postService.updatePost(id, updates);
 
           set((state) => ({
@@ -285,6 +315,15 @@ export const useCommunityStore = create<CommunityState>()(
 
       deletePost: async (id) => {
         try {
+          const user = requireAuth();
+
+          // 작성자 확인
+          const currentPost =
+            get().posts.find((p) => p.id === id) || get().currentPost;
+          if (currentPost && currentPost.authorId !== user.uid) {
+            throw new Error("본인의 게시글만 삭제할 수 있습니다.");
+          }
+
           await postService.deletePost(id);
 
           set((state) => ({
@@ -304,24 +343,23 @@ export const useCommunityStore = create<CommunityState>()(
       },
 
       togglePostLike: async (postId) => {
-        const { currentUserId } = get();
-        if (!currentUserId) return;
-
         try {
-          await postService.toggleLike(postId, currentUserId);
+          const user = requireAuth();
+
+          await postService.toggleLike(postId, user.uid);
 
           set((state) => ({
             posts: state.posts.map((post) => {
               if (post.id === postId) {
                 const likedBy = post.likedBy || [];
-                const isLiked = likedBy.includes(currentUserId);
+                const isLiked = likedBy.includes(user.uid);
 
                 return {
                   ...post,
                   likes: isLiked ? post.likes - 1 : post.likes + 1,
                   likedBy: isLiked
-                    ? likedBy.filter((id) => id !== currentUserId)
-                    : [...likedBy, currentUserId],
+                    ? likedBy.filter((id) => id !== user.uid)
+                    : [...likedBy, user.uid],
                 };
               }
               return post;
@@ -330,7 +368,7 @@ export const useCommunityStore = create<CommunityState>()(
               state.currentPost?.id === postId
                 ? (() => {
                     const likedBy = state.currentPost.likedBy || [];
-                    const isLiked = likedBy.includes(currentUserId);
+                    const isLiked = likedBy.includes(user.uid);
 
                     return {
                       ...state.currentPost,
@@ -338,8 +376,8 @@ export const useCommunityStore = create<CommunityState>()(
                         ? state.currentPost.likes - 1
                         : state.currentPost.likes + 1,
                       likedBy: isLiked
-                        ? likedBy.filter((id) => id !== currentUserId)
-                        : [...likedBy, currentUserId],
+                        ? likedBy.filter((id) => id !== user.uid)
+                        : [...likedBy, user.uid],
                     };
                   })()
                 : state.currentPost,
@@ -351,6 +389,7 @@ export const useCommunityStore = create<CommunityState>()(
                 ? error.message
                 : "좋아요 처리에 실패했습니다.",
           });
+          throw error;
         }
       },
 
@@ -398,8 +437,17 @@ export const useCommunityStore = create<CommunityState>()(
         }
       },
 
-      addComment: async (comment) => {
+      addComment: async (commentData) => {
         try {
+          const user = requireAuth();
+
+          const comment = {
+            ...commentData,
+            authorId: user.uid,
+            authorName: user.nickname || user.displayName || "사용자",
+            authorAvatar: user.photoURL ? "🖼️" : "👤",
+          };
+
           const commentId = await commentService.addComment(comment);
 
           const newComment: Comment = {
@@ -444,8 +492,10 @@ export const useCommunityStore = create<CommunityState>()(
         }
       },
 
+      // 나머지 액션들도 유사하게 인증 확인 로직 추가...
       updateComment: async (id, updates) => {
         try {
+          const user = requireAuth();
           await commentService.updateComment(id, updates);
 
           const updateCommentInTree = (comments: Comment[]): Comment[] => {
@@ -479,6 +529,7 @@ export const useCommunityStore = create<CommunityState>()(
 
       deleteComment: async (id, postId) => {
         try {
+          const user = requireAuth();
           await commentService.deleteComment(id, postId);
 
           const removeCommentFromTree = (comments: Comment[]): Comment[] => {
@@ -520,24 +571,22 @@ export const useCommunityStore = create<CommunityState>()(
       },
 
       toggleCommentLike: async (commentId) => {
-        const { currentUserId } = get();
-        if (!currentUserId) return;
-
         try {
-          await commentService.toggleCommentLike(commentId, currentUserId);
+          const user = requireAuth();
+          await commentService.toggleCommentLike(commentId, user.uid);
 
           const updateCommentLikes = (comments: Comment[]): Comment[] => {
             return comments.map((comment) => {
               if (comment.id === commentId) {
                 const likedBy = comment.likedBy || [];
-                const isLiked = likedBy.includes(currentUserId);
+                const isLiked = likedBy.includes(user.uid);
 
                 return {
                   ...comment,
                   likes: isLiked ? comment.likes - 1 : comment.likes + 1,
                   likedBy: isLiked
-                    ? likedBy.filter((id) => id !== currentUserId)
-                    : [...likedBy, currentUserId],
+                    ? likedBy.filter((id) => id !== user.uid)
+                    : [...likedBy, user.uid],
                 };
               }
               if (comment.replies && comment.replies.length > 0) {
@@ -565,9 +614,11 @@ export const useCommunityStore = create<CommunityState>()(
 
       // 고양이 관련 액션들
       fetchCats: async (userId) => {
-        set({ catsLoading: true, catsError: null });
         try {
-          const cats = await catService.getCatsByUserId(userId);
+          const user = userId ? { uid: userId } : requireAuth();
+
+          set({ catsLoading: true, catsError: null });
+          const cats = await catService.getCatsByUserId(user.uid);
           set({ cats, catsLoading: false });
         } catch (error) {
           set({
@@ -580,8 +631,15 @@ export const useCommunityStore = create<CommunityState>()(
         }
       },
 
-      addCat: async (cat) => {
+      addCat: async (catData) => {
         try {
+          const user = requireAuth();
+
+          const cat = {
+            ...catData,
+            userId: user.uid,
+          };
+
           const catId = await catService.addCat(cat);
 
           const newCat: Cat = {
@@ -631,9 +689,11 @@ export const useCommunityStore = create<CommunityState>()(
 
       // 감정 기록 관련 액션들
       fetchEmotions: async (userId) => {
-        set({ emotionsLoading: true, emotionsError: null });
         try {
-          const emotions = await emotionService.getEmotionsByUserId(userId);
+          const user = userId ? { uid: userId } : requireAuth();
+
+          set({ emotionsLoading: true, emotionsError: null });
+          const emotions = await emotionService.getEmotionsByUserId(user.uid);
           set({ emotions, emotionsLoading: false });
         } catch (error) {
           set({
@@ -646,8 +706,15 @@ export const useCommunityStore = create<CommunityState>()(
         }
       },
 
-      addEmotion: async (emotion) => {
+      addEmotion: async (emotionData) => {
         try {
+          const user = requireAuth();
+
+          const emotion = {
+            ...emotionData,
+            userId: user.uid,
+          };
+
           const emotionId = await emotionService.addEmotionRecord(emotion);
 
           const newEmotion: EmotionRecord = {
@@ -713,11 +780,7 @@ export const useCommunityStore = create<CommunityState>()(
         }
       },
 
-      // 유틸리티 액션들
-      setCurrentUser: (userId) => {
-        set({ currentUserId: userId });
-      },
-
+      // 유틸리티
       clearErrors: () => {
         set({
           postsError: null,

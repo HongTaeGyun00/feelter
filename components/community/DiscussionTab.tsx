@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import React from "react"; // Added missing import
 
 interface Discussion {
   id: string;
@@ -116,6 +117,12 @@ export default function DiscussionTab({ onCreatePost }: DiscussionTabProps) {
     setDiscussionData(filteredData);
   }, [selectedType]);
 
+  // Memoize filtered data to prevent unnecessary re-renders
+  const filteredDiscussionData = React.useMemo(() => {
+    if (!selectedType) return mockDiscussionData;
+    return mockDiscussionData.filter((item) => item.type === selectedType);
+  }, [selectedType]);
+
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
 
@@ -226,7 +233,7 @@ export default function DiscussionTab({ onCreatePost }: DiscussionTabProps) {
 
       {/* Discussion Cards */}
       <div className="space-y-4">
-        {discussionData.map((discussion) => (
+        {filteredDiscussionData.map((discussion) => (
           <article
             key={discussion.id}
             className={`
@@ -343,7 +350,7 @@ export default function DiscussionTab({ onCreatePost }: DiscussionTabProps) {
           🔥 인기 토론 주제
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {discussionData
+          {filteredDiscussionData
             .filter((item) => item.status === "hot")
             .slice(0, 4)
             .map((discussion) => (
@@ -370,25 +377,31 @@ export default function DiscussionTab({ onCreatePost }: DiscussionTabProps) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-gray-800 rounded-xl p-4 text-center border border-white/10 shadow-sm">
           <div className="text-2xl font-bold" style={{ color: "#CCFF00" }}>
-            {discussionData.length}
+            {filteredDiscussionData.length}
           </div>
           <div className="text-sm text-gray-400">총 토론 수</div>
         </div>
         <div className="bg-gray-800 rounded-xl p-4 text-center border border-white/10 shadow-sm">
           <div className="text-2xl font-bold" style={{ color: "#CCFF00" }}>
-            {discussionData.filter((item) => item.status === "hot").length}
+            {
+              filteredDiscussionData.filter((item) => item.status === "hot")
+                .length
+            }
           </div>
           <div className="text-sm text-gray-400">HOT 토론</div>
         </div>
         <div className="bg-gray-800 rounded-xl p-4 text-center border border-white/10 shadow-sm">
           <div className="text-2xl font-bold" style={{ color: "#CCFF00" }}>
-            {discussionData.reduce((sum, item) => sum + item.comments, 0)}
+            {filteredDiscussionData.reduce(
+              (sum, item) => sum + item.comments,
+              0
+            )}
           </div>
           <div className="text-sm text-gray-400">총 댓글 수</div>
         </div>
         <div className="bg-gray-800 rounded-xl p-4 text-center border border-white/10 shadow-sm">
           <div className="text-2xl font-bold" style={{ color: "#CCFF00" }}>
-            {discussionData.filter((item) => item.isActive).length}
+            {filteredDiscussionData.filter((item) => item.isActive).length}
           </div>
           <div className="text-sm text-gray-400">활성 토론</div>
         </div>
@@ -430,7 +443,7 @@ export default function DiscussionTab({ onCreatePost }: DiscussionTabProps) {
       </div>
 
       {/* Empty State */}
-      {discussionData.length === 0 && (
+      {filteredDiscussionData.length === 0 && (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">💭</div>
           <h3 className="text-xl font-bold mb-2" style={{ color: "#CCFF00" }}>

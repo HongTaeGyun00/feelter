@@ -138,12 +138,35 @@ export const postService = {
   async addPost(
     post: Omit<CommunityPost, "id" | "createdAt" | "updatedAt">
   ): Promise<string> {
-    const docRef = await addDoc(collection(db, "posts"), {
+    const batch = writeBatch(db);
+
+    // 게시글 추가
+    const postRef = doc(collection(db, "posts"));
+    batch.set(postRef, {
       ...post,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    return docRef.id;
+
+    // 사용자 통계 업데이트
+    const userRef = doc(db, "users", post.authorId);
+    const statsUpdate: any = {
+      "stats.postsCount": increment(1),
+      updatedAt: new Date(),
+    };
+
+    if (post.type === "review") {
+      statsUpdate["stats.reviewsCount"] = increment(1);
+    } else if (post.type === "discussion") {
+      statsUpdate["stats.discussionsCount"] = increment(1);
+    } else if (post.type === "emotion") {
+      statsUpdate["stats.emotionsCount"] = increment(1);
+    }
+
+    batch.update(userRef, statsUpdate);
+    await batch.commit();
+
+    return postRef.id;
   },
 
   // 게시글 업데이트
@@ -161,30 +184,54 @@ export const postService = {
     await deleteDoc(docRef);
   },
 
-  // 좋아요 토글
+  // 좋아요 토글 (수정된 부분)
   async toggleLike(postId: string, userId: string): Promise<void> {
-    const docRef = doc(db, "posts", id);
-    const docSnap = await getDoc(docRef);
+    const postRef = doc(db, "posts", postId);
+    const postSnap = await getDoc(postRef);
 
-    if (docSnap.exists()) {
-      const data = docSnap.data() as CommunityPost;
-      const likedBy = data.likedBy || [];
+    if (postSnap.exists()) {
+      const postData = postSnap.data() as CommunityPost;
+      const likedBy = postData.likedBy || [];
+      const isCurrentlyLiked = likedBy.includes(userId);
 
-      if (likedBy.includes(userId)) {
+      const batch = writeBatch(db);
+
+      // 게시글 좋아요 상태 업데이트
+      if (isCurrentlyLiked) {
         // 좋아요 취소
-        await updateDoc(docRef, {
+        batch.update(postRef, {
           likes: increment(-1),
           likedBy: arrayRemove(userId),
           updatedAt: new Date(),
         });
+
+        // 게시글 작성자의 받은 좋아요 수 감소
+        if (postData.authorId !== userId) {
+          const authorRef = doc(db, "users", postData.authorId);
+          batch.update(authorRef, {
+            "stats.likesReceived": increment(-1),
+            updatedAt: new Date(),
+          });
+        }
       } else {
         // 좋아요 추가
-        await updateDoc(docRef, {
+        batch.update(postRef, {
           likes: increment(1),
           likedBy: arrayUnion(userId),
           updatedAt: new Date(),
         });
+
+        // 게시글 작성자의 받은 좋아요 수 증가
+        if (postData.authorId !== userId) {
+          const authorRef = doc(db, "users", postData.authorId);
+          batch.update(authorRef, {
+            "stats.likesReceived": increment(1),
+            updatedAt: new Date(),
+          });
+        }
       }
+
+      await batch.commit();
     }
   },
 
@@ -215,6 +262,51 @@ export const postService = {
       } else {
         callback(null);
       }
+    });
+  },
+};
+
+export const userStatsService = {
+  // 게시글 작성 시 통계 업데이트
+  async incrementPostCount(
+    userId: string,
+    postType: "review" | "discussion" | "emotion"
+  ): Promise<void> {
+    const userRef = doc(db, "users", userId);
+    const updates: any = {
+      "stats.postsCount": increment(1),
+      updatedAt: new Date(),
+    };
+
+    if (postType === "review") {
+      updates["stats.reviewsCount"] = increment(1);
+    } else if (postType === "discussion") {
+      updates["stats.discussionsCount"] = increment(1);
+    } else if (postType === "emotion") {
+      updates["stats.emotionsCount"] = increment(1);
+    }
+
+    await updateDoc(userRef, updates);
+  },
+
+  // 좋아요 받았을 때 통계 업데이트
+  async incrementLikesReceived(
+    userId: string,
+    incrementValue: number = 1
+  ): Promise<void> {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      "stats.likesReceived": increment(incrementValue),
+      updatedAt: new Date(),
+    });
+  },
+
+  // 댓글 받았을 때 통계 업데이트
+  async incrementCommentsReceived(userId: string): Promise<void> {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      "stats.commentsReceived": increment(1),
+      updatedAt: new Date(),
     });
   },
 };
@@ -277,6 +369,21 @@ export const commentService = {
     batch.update(postRef, {
       comments: increment(1),
     });
+
+    // 게시글 작성자 정보 가져오기 위해 게시글 조회
+    const postSnap = await getDoc(postRef);
+    if (postSnap.exists()) {
+      const postData = postSnap.data() as CommunityPost;
+
+      // 게시글 작성자의 받은 댓글 수 증가 (본인 댓글은 제외)
+      if (postData.authorId !== comment.authorId) {
+        const authorRef = doc(db, "users", postData.authorId);
+        batch.update(authorRef, {
+          "stats.commentsReceived": increment(1),
+          updatedAt: new Date(),
+        });
+      }
+    }
 
     await batch.commit();
     return commentRef.id;

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useCommunityStore } from "@/lib/stores/communityStore";
 
 interface Cat {
   id: string;
@@ -18,64 +19,22 @@ interface Cat {
     discussions: number;
     emotions: number;
   };
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
-
-const mockCatData: Cat[] = [
-  {
-    id: "1",
-    name: "나비",
-    emoji: "🐱",
-    level: 7,
-    type: "영화평론가",
-    experience: 70,
-    maxExperience: 100,
-    description: "리뷰 작성으로 성장 중인 똑똑한 고양이",
-    specialty: "심도 있는 영화 분석",
-    achievements: ["첫 리뷰 작성", "평점왕", "베스트 리뷰어"],
-    stats: {
-      reviews: 23,
-      discussions: 8,
-      emotions: 12,
-    },
-  },
-  {
-    id: "2",
-    name: "토토",
-    emoji: "😺",
-    level: 5,
-    type: "토론왕",
-    experience: 45,
-    maxExperience: 100,
-    description: "열정적인 토론으로 레벨업!",
-    specialty: "활발한 커뮤니티 참여",
-    achievements: ["토론 마스터", "댓글왕", "인기글 작성자"],
-    stats: {
-      reviews: 12,
-      discussions: 34,
-      emotions: 6,
-    },
-  },
-  {
-    id: "3",
-    name: "달키",
-    emoji: "😸",
-    level: 3,
-    type: "감정표현가",
-    experience: 30,
-    maxExperience: 100,
-    description: "감정 기록을 통해 천천히 성장 중",
-    specialty: "섬세한 감정 표현",
-    achievements: ["감정일기왕", "공감능력자"],
-    stats: {
-      reviews: 5,
-      discussions: 2,
-      emotions: 28,
-    },
-  },
-];
 
 export default function CatsTab() {
   const [selectedCat, setSelectedCat] = useState<Cat | null>(null);
+  const { cats, catsLoading, catsError, fetchCats, currentUserId } =
+    useCommunityStore();
+
+  // 컴포넌트 마운트시 고양이 데이터 로드
+  useEffect(() => {
+    if (currentUserId) {
+      fetchCats(currentUserId);
+    }
+  }, [currentUserId, fetchCats]);
 
   const getProgressColor = (level: number) => {
     if (level >= 7) return "from-purple-500 to-pink-500";
@@ -84,16 +43,57 @@ export default function CatsTab() {
     return "from-gray-500 to-gray-400";
   };
 
-  const getLevelBadgeColor = (level: number) => {
-    if (level >= 7) return "from-purple-500 to-pink-500";
-    if (level >= 5) return "from-blue-500 to-cyan-500";
-    if (level >= 3) return "from-green-500 to-blue-500";
-    return "from-gray-500 to-gray-400";
-  };
+  // Remove duplicate function and use the same logic
+  const getLevelBadgeColor = getProgressColor;
 
   const handleCatClick = (cat: Cat) => {
     setSelectedCat(cat);
   };
+
+  // 로딩 상태
+  if (catsLoading) {
+    return (
+      <div className="w-full">
+        <div className="flex justify-center items-center py-16">
+          <div className="bg-gray-800 rounded-xl p-6 text-center border border-white/10 shadow-sm">
+            <div
+              className="animate-spin w-8 h-8 border-2 border-t-transparent 
+                        rounded-full mx-auto mb-3"
+              style={{
+                borderColor: "#CCFF00",
+                borderTopColor: "transparent",
+              }}
+            />
+            <p style={{ color: "#CCFF00" }}>고양이 정보를 불러오는 중...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 에러 상태
+  if (catsError) {
+    return (
+      <div className="w-full">
+        <div className="text-center py-16">
+          <div className="text-red-400 mb-4">⚠️ {catsError}</div>
+          <button
+            onClick={() => currentUserId && fetchCats(currentUserId)}
+            className="px-6 py-3 rounded-lg font-medium hover:shadow-lg 
+                       transition-all duration-300 border-2 border-transparent 
+                       hover:border-white/20"
+            style={{
+              backgroundColor: "#CCFF00",
+              color: "#111111",
+              boxShadow: "0 4px 20px rgba(204, 255, 0, 0.3)",
+            }}
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -111,87 +111,103 @@ export default function CatsTab() {
       </div>
 
       {/* Cat Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {mockCatData.map((cat) => (
-          <div
-            key={cat.id}
-            onClick={() => handleCatClick(cat)}
-            className="bg-gray-800 backdrop-blur-lg border border-white/10 rounded-2xl p-6 shadow-sm
-                       cursor-pointer transition-all duration-300 hover:-translate-y-2 
-                       hover:shadow-lg"
-          >
-            {/* Cat Avatar */}
-            <div className="text-center mb-4">
-              <div className="text-6xl mb-3 animate-bounce">{cat.emoji}</div>
-              <h3 className="text-xl font-bold text-white mb-2">{cat.name}</h3>
-              <div
-                className={`inline-block px-4 py-2 rounded-full bg-gradient-to-r ${getLevelBadgeColor(
-                  cat.level
-                )} text-black font-bold text-sm`}
-              >
-                Lv.{cat.level} {cat.type}
-              </div>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-400 mb-2">
-                <span>경험치</span>
-                <span>
-                  {cat.experience}/{cat.maxExperience}
-                </span>
-              </div>
-              <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
+      {cats.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {cats.map((cat) => (
+            <div
+              key={cat.id}
+              onClick={() => handleCatClick(cat)}
+              className="bg-gray-800 backdrop-blur-lg border border-white/10 rounded-2xl p-6 shadow-sm
+                         cursor-pointer transition-all duration-300 hover:-translate-y-2 
+                         hover:shadow-lg"
+            >
+              {/* Cat Avatar */}
+              <div className="text-center mb-4">
+                <div className="text-6xl mb-3 animate-bounce">{cat.emoji}</div>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {cat.name}
+                </h3>
                 <div
-                  className={`h-full bg-gradient-to-r ${getProgressColor(
+                  className={`inline-block px-4 py-2 rounded-full bg-gradient-to-r ${getLevelBadgeColor(
                     cat.level
-                  )} rounded-full transition-all duration-1000 ease-out`}
-                  style={{
-                    width: `${(cat.experience / cat.maxExperience) * 100}%`,
-                  }}
-                />
+                  )} text-black font-bold text-sm`}
+                >
+                  Lv.{cat.level} {cat.type}
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-400 mb-2">
+                  <span>경험치</span>
+                  <span>
+                    {cat.experience}/{cat.maxExperience}
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full bg-gradient-to-r ${getProgressColor(
+                      cat.level
+                    )} rounded-full transition-all duration-1000 ease-out`}
+                    style={{
+                      width: `${(cat.experience / cat.maxExperience) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-gray-300 text-sm text-center mb-4">
+                {cat.description}
+              </p>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-white/10 rounded-lg py-2">
+                  <div className="font-bold" style={{ color: "#CCFF00" }}>
+                    {cat.stats.reviews}
+                  </div>
+                  <div className="text-xs text-gray-400">리뷰</div>
+                </div>
+                <div className="bg-white/10 rounded-lg py-2">
+                  <div className="text-blue-400 font-bold">
+                    {cat.stats.discussions}
+                  </div>
+                  <div className="text-xs text-gray-400">토론</div>
+                </div>
+                <div className="bg-white/10 rounded-lg py-2">
+                  <div className="text-pink-400 font-bold">
+                    {cat.stats.emotions}
+                  </div>
+                  <div className="text-xs text-gray-400">감정</div>
+                </div>
               </div>
             </div>
-
-            {/* Description */}
-            <p className="text-gray-300 text-sm text-center mb-4">
-              {cat.description}
-            </p>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-white/10 rounded-lg py-2">
-                <div className="font-bold" style={{ color: "#CCFF00" }}>
-                  {cat.stats.reviews}
-                </div>
-                <div className="text-xs text-gray-400">리뷰</div>
-              </div>
-              <div className="bg-white/10 rounded-lg py-2">
-                <div className="text-blue-400 font-bold">
-                  {cat.stats.discussions}
-                </div>
-                <div className="text-xs text-gray-400">토론</div>
-              </div>
-              <div className="bg-white/10 rounded-lg py-2">
-                <div className="text-pink-400 font-bold">
-                  {cat.stats.emotions}
-                </div>
-                <div className="text-xs text-gray-400">감정</div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        /* Empty State */
+        <div className="text-center py-16 mb-8">
+          <div className="text-6xl mb-4">🐱</div>
+          <h3 className="text-xl font-bold mb-2" style={{ color: "#CCFF00" }}>
+            아직 고양이 식구가 없습니다
+          </h3>
+          <p className="text-gray-400 mb-6">
+            첫 번째 활동을 시작하면 귀여운 고양이 친구가 생겨요!
+          </p>
+        </div>
+      )}
 
       {/* Cat Detail Modal */}
       {selectedCat && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 backdrop-blur-lg border border-white/20 rounded-3xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-sm">
+          <div className="bg-gray-800 backdrop-blur-lg border border-white/20 rounded-3xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-sm relative">
             {/* Close Button */}
             <button
               onClick={() => setSelectedCat(null)}
               className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 
-                         rounded-full flex items-center justify-center text-gray-400 hover:text-white"
+                         rounded-full flex items-center justify-center text-gray-400 hover:text-white
+                         transition-all duration-300"
             >
               ✕
             </button>

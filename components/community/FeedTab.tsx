@@ -37,19 +37,27 @@ export default function FeedTab({ onCreatePost }: FeedTabProps) {
 
   // 무한 스크롤 처리
   useEffect(() => {
+    let ticking = false;
+
     const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop >=
-          document.documentElement.offsetHeight - 100 &&
-        hasMorePosts &&
-        !postsLoading &&
-        !isLoadingMore
-      ) {
-        handleLoadMore();
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          if (
+            window.innerHeight + document.documentElement.scrollTop >=
+              document.documentElement.offsetHeight - 100 &&
+            hasMorePosts &&
+            !postsLoading &&
+            !isLoadingMore
+          ) {
+            handleLoadMore();
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [hasMorePosts, postsLoading, isLoadingMore]);
 
@@ -73,11 +81,46 @@ export default function FeedTab({ onCreatePost }: FeedTabProps) {
     togglePostLike(postId);
   };
 
+  // post type을 ActivityCard type으로 변환하는 함수
+  const mapPostTypeToActivityType = (postType: string) => {
+    switch (postType) {
+      case "review":
+        return "review" as const;
+      case "discussion":
+        return "discussion" as const;
+      case "emotion":
+        return "emotion" as const;
+      case "general":
+        return "discussion" as const; // general을 discussion으로 매핑
+      default:
+        return "discussion" as const;
+    }
+  };
+
+  // 활동 타입 라벨을 반환하는 함수
+  const getActivityTypeLabel = (postType: string) => {
+    switch (postType) {
+      case "review":
+        return "리뷰";
+      case "discussion":
+        return "토론";
+      case "emotion":
+        return "감정";
+      case "general":
+        return "일반";
+      default:
+        return "일반";
+    }
+  };
+
   // 에러 처리
   if (postsError) {
     return (
       <div className="text-center py-16">
-        <div className="text-red-400 mb-4">⚠️ {postsError}</div>
+        <div className="text-red-400 mb-4 text-lg">⚠️ {postsError}</div>
+        <p className="text-gray-400 mb-6">
+          데이터를 불러오는 중 문제가 발생했습니다.
+        </p>
         <button
           onClick={() => {
             clearErrors();
@@ -136,7 +179,7 @@ export default function FeedTab({ onCreatePost }: FeedTabProps) {
             {posts.map((post) => (
               <ActivityCard
                 key={post.id}
-                type={post.type}
+                type={mapPostTypeToActivityType(post.type)}
                 avatar={post.authorAvatar}
                 username={post.authorName}
                 timestamp={new Date(post.createdAt).toLocaleString("ko-KR", {
@@ -145,15 +188,7 @@ export default function FeedTab({ onCreatePost }: FeedTabProps) {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
-                activityType={
-                  post.type === "review"
-                    ? "리뷰"
-                    : post.type === "discussion"
-                    ? "토론"
-                    : post.type === "emotion"
-                    ? "감정"
-                    : "일반"
-                }
+                activityType={getActivityTypeLabel(post.type)}
                 title={post.title}
                 preview={post.content}
                 rating={post.rating}

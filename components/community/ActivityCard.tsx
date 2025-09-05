@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export interface ActivityCardProps {
-  type: "review" | "discussion" | "cat" | "emotion";
+  type: "review" | "discussion" | "cat" | "emotion" | "general";
   avatar: string;
   username: string;
   timestamp: string;
@@ -41,6 +41,12 @@ export default function ActivityCard({
   const [likes, setLikes] = useState(initialLikes);
   const [isLiked, setIsLiked] = useState(initialIsLiked);
 
+  // props가 변경될 때 로컬 상태 업데이트
+  useEffect(() => {
+    setLikes(initialLikes);
+    setIsLiked(initialIsLiked);
+  }, [initialLikes, initialIsLiked]);
+
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation(); // 카드 클릭 이벤트와 분리
 
@@ -73,6 +79,8 @@ export default function ActivityCard({
         return "border-orange-500/30";
       case "emotion":
         return "border-cyan-500/30";
+      case "general":
+        return "border-green-500/30";
       default:
         return "border-white/10";
     }
@@ -106,6 +114,15 @@ export default function ActivityCard({
         hover:shadow-lg cursor-pointer ${getCardStyle()} ${className}
       `}
       onClick={handleCardClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleCardClick();
+        }
+      }}
+      tabIndex={0}
+      role="button"
+      aria-label={`${username}의 ${activityType} 게시글: ${title}`}
     >
       {/* Card Header */}
       <header className="flex items-center gap-4 mb-4">
@@ -179,13 +196,15 @@ export default function ActivityCard({
           style={{
             backgroundColor: isLiked ? "#CCFF00" : "transparent",
           }}
+          aria-label={`${isLiked ? "좋아요 취소" : "좋아요"} (${likes}개)`}
+          aria-pressed={isLiked}
         >
           <span
             className={`transition-transform duration-300 ${
               isLiked ? "scale-125" : ""
             }`}
           >
-            {isLiked ? "👍" : "👍"}
+            {isLiked ? "❤️" : "🤍"}
           </span>
           <span>{likes}</span>
         </button>
@@ -210,7 +229,7 @@ export default function ActivityCard({
             // 공유 기능 구현
           }}
         >
-          <span>🔤</span>
+          <span>🔗</span>
           <span>공유</span>
         </button>
 

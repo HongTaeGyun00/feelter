@@ -41,6 +41,15 @@ export default function CommunityTabs({
                 backgroundColor:
                   activeTab === tab.id ? "#CCFF00" : "transparent",
               }}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-label={`${tab.label} 탭`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onTabChange(tab.id);
+                }
+              }}
             >
               <span className="text-lg">{tab.icon}</span>
               <span>{tab.label}</span>

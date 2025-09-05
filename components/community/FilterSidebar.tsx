@@ -47,6 +47,7 @@ export default function FilterSidebar({
               className="w-full py-2 px-3 hover:bg-white/20 
                              rounded-lg text-sm transition-all duration-300 text-white"
               style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
+              aria-label="내 활동 보기"
             >
               내 활동 보기
             </button>
@@ -54,6 +55,7 @@ export default function FilterSidebar({
               className="w-full py-2 px-3 hover:bg-white/20 
                              rounded-lg text-sm transition-all duration-300 text-white"
               style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
+              aria-label="프로필 편집"
             >
               프로필 편집
             </button>
