@@ -1,9 +1,10 @@
-/* 원래있던 거 S*/
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-/* 원래있던 거 E*/
-import Header from "@/components/common/Header";
-import Footer from "@/components/common/Footer";
+import AuthProvider from "@/components/auth/AuthProvider";
+import DevDataLoader from "@/components/DevDataLoader";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Feelter - 당신의 지금, 그 순간에",
@@ -12,15 +13,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="ko">
-      <body className="bg-gray-100 max-w-6xl mx-auto text-gray-900">
-        <Header />
-        {children}
-        <Footer />
+      <body className={inter.className}>
+        <AuthProvider>
+          <DevDataLoader>{children}</DevDataLoader>
+        </AuthProvider>
       </body>
     </html>
   );

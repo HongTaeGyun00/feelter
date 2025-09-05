@@ -17,6 +17,8 @@ import { useAuthStore } from "./authStore";
 
 interface CommunityState {
   // 기존 상태들...
+  currentUser: string | null;
+  setCurrentUser: (user: string | null) => void;
   posts: CommunityPost[];
   currentPost: CommunityPost | null;
   postsLoading: boolean;
@@ -105,6 +107,8 @@ export const useCommunityStore = create<CommunityState>()(
   devtools(
     (set, get) => ({
       // 초기 상태
+      currentUser: null,
+      setCurrentUser: (user) => set({ currentUser: user }),
       posts: [],
       currentPost: null,
       postsLoading: false,
